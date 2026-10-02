@@ -27,6 +27,29 @@ jobs:
           cd source
           git checkout "$TUNNEL_FORGE_COMMIT"
 
+      - name: Make test app install alongside official TunnelForge
+        working-directory: source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("android/app/build.gradle.kts")
+          s = p.read_text()
+          old = 'applicationId = "io.github.evokelektrique.tunnelforge"'
+          new = 'applicationId = "io.github.evokelektrique.tunnelforge.test"'
+          if old not in s:
+              raise SystemExit("Expected applicationId not found")
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path("android/app/src/main/res/values/strings.xml")
+          s = p.read_text()
+          old = '<string name="app_name">TunnelForge</string>'
+          new = '<string name="app_name">TunnelForge TEST</string>'
+          if old not in s:
+              raise SystemExit("Expected app_name not found")
+          p.write_text(s.replace(old, new, 1))
+          PY
+
       - name: Apply inner UDP checksum test change
         working-directory: source
         run: |
@@ -36,7 +59,7 @@ jobs:
           p = Path("android/app/src/main/cpp/CMakeLists.txt")
           s = p.read_text()
           old = 'option(TUNNEL_FORGE_ESP_INNER_UDP_NO_CHECKSUM "Use inner UDP checksum 0 (interop)" ON)'
-          new = 'option(TUNNEL_FORGE_ESP_INNER_UDP_NO_CHECKSUM "Use inner UDP checksum 0 (interop)" OFF)'
+          new = 'option(TUNNEL_FORGE_ESP_INNER_UDP_NO_CHECKSUM "Use inner UDP checksum 0 (interop)" OFF'
           if old not in s:
               raise SystemExit("Expected CMake option not found")
           p.write_text(s.replace(old, new, 1))
@@ -45,7 +68,7 @@ jobs:
           s = p.read_text()
           if "version: 0.7.5+205" not in s:
               raise SystemExit("Expected source version 0.7.5+205 not found")
-          p.write_text(s.replace("version: 0.7.5+205", "version: 0.7.5+207", 1))
+          p.write_text(s.replace("version: 0.7.5+205", "version: 0.7.5+208", 1))
           PY
 
       - name: Set up Java
@@ -94,7 +117,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TunnelForge-0.7.5-build207-inner-udp-checksum
+          name: TunnelForge-0.7.5-build208-test-app
           path: source/build/app/outputs/flutter-apk/*.apk
           if-no-files-found: error
           retention-days: 7
