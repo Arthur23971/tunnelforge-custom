@@ -59,7 +59,7 @@ jobs:
           p = Path("android/app/src/main/cpp/CMakeLists.txt")
           s = p.read_text()
           old = 'option(TUNNEL_FORGE_ESP_INNER_UDP_NO_CHECKSUM "Use inner UDP checksum 0 (interop)" ON)'
-          new = 'option(TUNNEL_FORGE_ESP_INNER_UDP_NO_CHECKSUM "Use inner UDP checksum 0 (interop)" OFF'
+          new = 'option(TUNNEL_FORGE_ESP_INNER_UDP_NO_CHECKSUM "Use inner UDP checksum 0 (interop)" OFF)'
           if old not in s:
               raise SystemExit("Expected CMake option not found")
           p.write_text(s.replace(old, new, 1))
