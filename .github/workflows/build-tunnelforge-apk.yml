@@ -1,0 +1,100 @@
+name: Build TunnelForge custom APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.41.2
+  TUNNEL_FORGE_COMMIT: ef7670e57bcfa1ef9778a555fc07ec253492f7b6
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout custom repository
+        uses: actions/checkout@v5
+
+      - name: Checkout TunnelForge source
+        run: |
+          git clone https://github.com/evokelektrique/tunnel-forge.git source
+          cd source
+          git checkout "$TUNNEL_FORGE_COMMIT"
+
+      - name: Apply inner UDP checksum test change
+        working-directory: source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("android/app/src/main/cpp/CMakeLists.txt")
+          s = p.read_text()
+          old = 'option(TUNNEL_FORGE_ESP_INNER_UDP_NO_CHECKSUM "Use inner UDP checksum 0 (interop)" ON)'
+          new = 'option(TUNNEL_FORGE_ESP_INNER_UDP_NO_CHECKSUM "Use inner UDP checksum 0 (interop)" OFF)'
+          if old not in s:
+              raise SystemExit("Expected CMake option not found")
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path("pubspec.yaml")
+          s = p.read_text()
+          if "version: 0.7.5+205" not in s:
+              raise SystemExit("Expected source version 0.7.5+205 not found")
+          p.write_text(s.replace("version: 0.7.5+205", "version: 0.7.5+207", 1))
+          PY
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.2
+          channel: stable
+          cache: true
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: source/android/gvisor/go.mod
+          cache: true
+          cache-dependency-path: source/android/gvisor/go.sum
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Get Flutter dependencies
+        working-directory: source
+        run: flutter pub get
+
+      - name: Download Go dependencies
+        working-directory: source/android/gvisor
+        run: go mod download
+
+      - name: Create Android local.properties
+        working-directory: source/android
+        run: |
+          {
+            echo "flutter.sdk=$FLUTTER_ROOT"
+            echo "sdk.dir=$ANDROID_SDK_ROOT"
+          } > local.properties
+
+      - name: Build debug APK
+        working-directory: source
+        run: flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TunnelForge-0.7.5-build207-inner-udp-checksum
+          path: source/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+          retention-days: 7
